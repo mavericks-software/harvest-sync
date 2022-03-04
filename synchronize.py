@@ -57,7 +57,7 @@ headers_destination = {
     "Content-Type": "application/json; charset=utf-8"
 }
 
-print("Fetching from Mavericks Harvest...")
+print("Fetching from Source Harvest...")
 get_request_source = urllib.request.Request(url=url, headers=headers_source)
 get_response_source = urllib.request.urlopen(get_request_source, timeout=5)
 
@@ -68,7 +68,7 @@ if get_response_source.getcode() == 200:
 
     try:
 
-        print("Sending entries to Witted Harvest...")
+        print("Sending entries to Destination Harvest...")
         response_source = get_response_source.read().decode("utf-8")
         jsonResponse_source = json.loads(response_source)
 
