@@ -38,8 +38,21 @@ def getDestinationTaskId( sourceProjectId, sourceTaskId, mapping ):
 
     return None
 
-def isThereDuplicateEntries (entry, destinationEntries):
-    #TODO
+def isThereDuplicateEntries (sourceEntry, destinationEntries):
+
+    try:
+        for entry in destinationEntries:
+            if (
+                sourceEntry['spent_date'] == entry['spent_date'] and
+                sourceEntry['notes'] == entry['notes']      and 
+                sourceEntry['hours'] == entry['hours']
+               ):
+                return True
+
+    except Exception as e:
+
+        print("Error in checking destination entries! - "+ str(e))
+
     return False
 
 url = "https://api.harvestapp.com/v2/time_entries" + "?from=" + args.start + "&to=" + args.end
@@ -99,7 +112,7 @@ if get_response_source.getcode() == 200:
                         payload = json.dumps({"project_id":destination_project_id,"task_id":destination_task_id,"spent_date":entry['spent_date'],"hours":entry['hours'],"notes": entry['notes']})
                         payload_bytes = payload.encode('utf-8')
 
-                        if not isThereDuplicateEntries(entry, jsonResponse_destination):
+                        if not isThereDuplicateEntries(entry, jsonResponse_destination['time_entries']):
 
                             post_request = urllib.request.Request(url=url, headers=headers_destination, method="POST", data=payload_bytes)
                             post_response = urllib.request.urlopen(post_request, timeout=5)
