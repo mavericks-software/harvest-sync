@@ -21,10 +21,7 @@ Get yourself a Harvest Personal Access Token from [here](https://id.getharvest.c
 Run the script from within the harvest-sync folder, for example like so:
 `./synchronize.py --source $HARVEST_SOURCE_ACCOUNT_ID --destination $HARVEST_DESTINATION_ACCOUNT_ID --token $YOUR_HARVEST_PAT --start 2022-03-01 --end 2022-03-02`
 
-## Caveats
-
-The script is not yet indepotency safe, i.e if you run it twice, it will create the entries twice. Duplicate alert!
-
+The script has had rudimentary testing as indepotency safe, so feel free to run it in cron if you want.
 
 ## TODO 
 - Mapping json schema and validation.
