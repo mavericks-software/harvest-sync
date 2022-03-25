@@ -28,5 +28,4 @@ The script is not yet indepotency safe, i.e if you run it twice, it will create 
 
 ## TODO 
 - Mapping json schema and validation.
-- Implement Indepotency (meaning finish the duplication check function
 - Suggestions? Hit me up on Slack @alex
