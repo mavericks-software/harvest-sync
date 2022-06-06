@@ -1,1 +1,2 @@
 progressbar==2.5
+boto3==1.23.7
