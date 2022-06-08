@@ -48,18 +48,6 @@ def get_token():
         
             print("Error getting token: SecretString property not present")
 
-def getDestinationUserId( sourceUserId, mapping ):
-
-    try:
-        for user in mapping:
-            if sourceUserId == user['source_project_id']:
-                return user['destination_project_id']
-    except Exception as e:
-
-        print("Error in getting user id! - "+ str(e))
-
-    return None
-
 def getDestinationProjectId( sourceProjectId, mapping ):
 
     try:
@@ -99,7 +87,24 @@ def isThereDuplicateEntries (sourceEntry, destinationEntries):
 
     except Exception as e:
 
-        print("Error in checking destination entries! - "+ str(e))
+        print("Error in checking duplicate destination entries! - "+ str(e))
+
+    return False
+
+def isThereAnySourceEntry (destinationEntry, sourceEntries):
+
+    try:
+        for entry in sourceEntries:
+            if (
+                destinationEntry['spent_date'] == entry['spent_date'] and
+                destinationEntry['notes'] == entry['notes']      and 
+                destinationEntry['hours'] == entry['hours']
+               ):
+                return True
+
+    except Exception as e:
+
+        print("Error in checking existence of source entries! - "+ str(e))
 
     return False
 
@@ -113,78 +118,100 @@ def lambda_handler(event, context):
 
     print("Syncing from: " + start + ", to: " + end)
 
-    url = "https://api.harvestapp.com/v2/time_entries" + "?from=" + start + "&to=" + end
-    headers_source = {
-        "User-Agent": "Harvest Sync App",
-        "Authorization": "Bearer " + str(token),
-        "Harvest-Account-ID": source_harvest_id
-    }
-    headers_destination = {
-        "User-Agent": "Harvest Sync App",
-        "Authorization": "Bearer " + str(token),
-        "Harvest-Account-ID": destination_harvest_id,
-        "Content-Type": "application/json; charset=utf-8"
-    }
+    try:
+        with open(os.getcwd()+"/mapping.json") as f:
 
-    print("Fetching from Source Harvest...")
+            mapping = json.loads(f.read())
+            for user in mapping['users']:
+        
+                source_url = "https://api.harvestapp.com/v2/time_entries" + "?from=" + start + "&to=" + end + "&user_id=" + str(user['source_user_id'])
+                destination_url = "https://api.harvestapp.com/v2/time_entries" + "?from=" + start + "&to=" + end + "&user_id=" + str(user['destination_user_id'])
+                headers_source = {
+                    "User-Agent": "Harvest Sync App",
+                    "Authorization": "Bearer " + str(token),
+                    "Harvest-Account-ID": source_harvest_id
+                }
+                headers_destination = {
+                    "User-Agent": "Harvest Sync App",
+                    "Authorization": "Bearer " + str(token),
+                    "Harvest-Account-ID": destination_harvest_id,
+                    "Content-Type": "application/json; charset=utf-8"
+                }
 
-    get_request_source = urllib.request.Request(url=url, headers=headers_source)
-    get_response_source = urllib.request.urlopen(get_request_source, timeout=5)
+                print("Fetching from Source Harvest...")
 
-    get_request_destination = urllib.request.Request(url=url, headers=headers_destination)
-    get_response_destination = urllib.request.urlopen(get_request_destination, timeout=5)
+                get_request_source = urllib.request.Request(url=source_url, headers=headers_source)
+                get_response_source = urllib.request.urlopen(get_request_source, timeout=5)
 
-    if get_response_source.getcode() == 200:
+                get_request_destination = urllib.request.Request(url=destination_url, headers=headers_destination)
+                get_response_destination = urllib.request.urlopen(get_request_destination, timeout=5)
 
-        try:
+                if get_response_source.getcode() == 200:
 
-            print("Sending entries to Destination Harvest...")
+                    print("Sending entries to Destination Harvest...")
 
-            response_source = get_response_source.read().decode("utf-8")
-            jsonResponse_source = json.loads(response_source)
+                    response_source = get_response_source.read().decode("utf-8")
+                    jsonResponse_source = json.loads(response_source)
 
-            response_destination = get_response_destination.read().decode("utf-8")
-            jsonResponse_destination = json.loads(response_destination)
+                    response_destination = get_response_destination.read().decode("utf-8")
+                    jsonResponse_destination = json.loads(response_destination)
 
-            with open(os.getcwd()+"/mapping.json") as f:
+                    count = 0
+                    print( "Items:" + str(len(jsonResponse_source['time_entries'])))
 
-                mapping = json.loads(f.read())
-                count = 0
-                print( "Items:" + str(len(jsonResponse_source['time_entries'])))
+                    for entry in jsonResponse_source['time_entries']:
 
-                for entry in jsonResponse_source['time_entries']:
-
-                    count = count+1
-                    
-                    try:
+                        count = count+1
                         
-                        destination_project_id = getDestinationProjectId(entry['project']['id'], mapping)
-                        destination_task_id = getDestinationTaskId(entry['project']['id'], entry['task']['id'], mapping)
+                        try:
+                            
+                            destination_project_id = getDestinationProjectId(entry['project']['id'], mapping['projects'])
+                            destination_task_id = getDestinationTaskId(entry['project']['id'], entry['task']['id'], mapping['projects'])
 
-                        if destination_project_id and destination_task_id is not None:
+                            if destination_project_id and destination_task_id is not None:
 
-                            payload = json.dumps({"project_id":destination_project_id,"task_id":destination_task_id,"spent_date":entry['spent_date'],"hours":entry['hours'],"notes": entry['notes']})
-                            #payload = json.dumps({"project_id":destination_project_id,"task_id":destination_task_id,"spent_date":entry['spent_date'],"hours":entry['hours'],"notes": entry['notes'], "user_id": entry['user']['id']})
-                            payload_bytes = payload.encode('utf-8')
+                                #payload = json.dumps({"project_id":destination_project_id,"task_id":destination_task_id,"spent_date":entry['spent_date'],"hours":entry['hours'],"notes": entry['notes']})
+                                payload = json.dumps({"project_id":destination_project_id,"task_id":destination_task_id,"spent_date":entry['spent_date'],"hours":entry['hours'],"notes": entry['notes'], "user_id": entry['user']['id']})
+                                payload_bytes = payload.encode('utf-8')
 
-                            if not isThereDuplicateEntries(entry, jsonResponse_destination['time_entries']):
+                                if not isThereDuplicateEntries(entry, jsonResponse_destination['time_entries']):
 
-                                post_request = urllib.request.Request(url=url, headers=headers_destination, method="POST", data=payload_bytes)
-                                post_response = urllib.request.urlopen(post_request, timeout=5)
+                                    post_request = urllib.request.Request(url=destination_url, headers=headers_destination, method="POST", data=payload_bytes)
+                                    post_response = urllib.request.urlopen(post_request, timeout=5)
 
-                    except Exception as e:
+                        except Exception as e:
 
-                        print("Oops! - "+ str(e))
+                            print("Oops! - Error interating source entries: "+ str(e))
 
-            f.close()
-            print("Done!")
+                    print("Removing entries deleted or edited in source Harvest...")
 
-        except Exception as e:
+                    for entry in jsonResponse_destination['time_entries']:
 
-            print("Oops! - "+ str(e))
-    else:
-        print ("Retreiving source time entries failed - " + str(get_response_source.getcode()))
-    # TODO implement
+                        try:
+                            if not isThereAnySourceEntry(entry, jsonResponse_source['time_entries']):
+
+                                url = "https://api.harvestapp.com/v2/time_entries/" + str(entry['id'])
+                                delete_request_destination = urllib.request.Request(url=url, headers=headers_destination, method="DELETE")
+                                delete_response_destination = urllib.request.urlopen(delete_request_destination, timeout=5)
+
+                                if delete_response_destination.getcode() != 200:
+
+                                    print ("Deleting eroneous entry failed - " + str(delete_response_destination.getcode()))
+
+                        except Exception as e:
+
+                            print("Oops! - Error deleting eroneous entries from destination Harvest: "+ str(e))
+
+                    print("Done!")
+
+                else:
+                    print ("Retreiving source time entries failed - " + str(get_response_source.getcode()))
+        f.close()
+
+    except Exception as e:
+
+        print("Oops! - "+ str(e))
+
     return {
         'statusCode': 200,
         'body': json.dumps('Hello from Lambda!')
